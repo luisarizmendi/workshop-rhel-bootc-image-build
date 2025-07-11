@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Default values
-ARCH="amd64"
+ARCH=""  # Will be detected if not specified
 ENTITLEMENTS_DIR="$HOME/.rh-entitlements"
 USERNAME=""
 PASSWORD=""
@@ -9,11 +9,28 @@ CREDENTIALS_FILE=""
 
 SUBS_FROM="registry.redhat.io/rhel9/rhel-bootc:9.6"
 
+# Function to detect system architecture
+detect_arch() {
+    local system_arch=$(uname -m)
+    case $system_arch in
+        x86_64)
+            echo "amd64"
+            ;;
+        aarch64|arm64)
+            echo "arm64"
+            ;;
+        *)
+            echo "Unsupported architecture: $system_arch. Supported: amd64, arm64" >&2
+            exit 1
+            ;;
+    esac
+}
+
 usage() {
     echo "Usage: $0 [OPTIONS]"
     echo ""
     echo "OPTIONS:"
-    echo "  -a ARCH              Architecture: amd64 or arm64. Default: amd64"
+    echo "  -a ARCH              Architecture: amd64 or arm64. Default: auto-detect from system"
     echo "  -e ENTITLEMENTS_DIR  Path to entitlements directory (default: ~/.rh-entitlements)"
     echo "  -u USERNAME          Red Hat username (optional, can use RH_USERNAME env var)"
     echo "  -p PASSWORD          Red Hat password (optional, can use RH_PASSWORD env var)"
@@ -75,6 +92,14 @@ done
 
 shift $((OPTIND-1))
 
+# Auto-detect architecture if not specified
+if [ -z "$ARCH" ]; then
+    ARCH=$(detect_arch)
+    ARCH_SOURCE="auto-detected"
+else
+    ARCH_SOURCE="specified"
+fi
+
 read_credentials_file() {
     local file="$1"
     if [ -f "$file" ]; then
@@ -115,7 +140,7 @@ ENTITLEMENTS_DIR="${ENTITLEMENTS_DIR/#\~/$HOME}"
 
 echo "Checking entitlements"
 echo "---------------------"
-echo "Architecture: $ARCH"
+echo "Architecture: $ARCH ($ARCH_SOURCE)"
 echo "Entitlements directory for $ARCH: ${ENTITLEMENTS_DIR}/${ARCH}"
 echo "Username: $USERNAME"
 echo "Using credentials from $CREDENTIAL_SOURCE"
@@ -170,7 +195,7 @@ RUN mkdir -p /entitlements/etc-pki-entitlement &&  mkdir -p /entitlements/rhsm &
       cp -a /etc/pki/entitlement/* /entitlements/etc-pki-entitlement &&  cp -a /etc/rhsm/* /entitlements/rhsm && \
       awk '/-appstream-/' RS= ORS="\n\n" /etc/yum.repos.d/redhat.repo >> /entitlements/redhat.repo && awk '/-baseos-/' RS= ORS="\n\n" /etc/yum.repos.d/redhat.repo >> /entitlements/redhat.repo
 RUN if [ -n "\$RH_USERNAME" ] && [ -n "\$RH_PASSWORD" ]; then \
-    echo "Unregistering from Red Hat Cloud inventory..." && for uuid in \$(curl -s -u "\$RH_USERNAME:\$RH_PASSWORD" https://cloud.redhat.com/api/inventory/v1/hosts?fqdn=\$(cat /etc/rhsm/host_id) | grep -o '"id":"[^"]*' | grep -o '[^"]*\$') ; do curl -u "\$RH_USERNAME:\$RH_PASSWORD" -X DELETE https://cloud.redhat.com/api/inventory/v1/hosts/\$uuid -H  "accept: */*" ;done && subscription-manager unregister && subscription-manager clean && ln -s /run/secrets/rhsm /etc/rhsm-host; \
+    echo "Unregistering from Red Hat Cloud inventory..." && for uuid in \$(curl -s -u "\$RH_USERNAME:\$RH_PASSWORD" "https://cloud.redhat.com/api/inventory/v1/hosts?fqdn=\$(cat /etc/rhsm/host_id)" | grep -o '"id":"[^"]*' | grep -o '[^"]*\$') ; do curl -u "\$RH_USERNAME:\$RH_PASSWORD" -X DELETE "https://cloud.redhat.com/api/inventory/v1/hosts/\$uuid" -H  "accept: */*" ;done && subscription-manager unregister && subscription-manager clean && ln -s /run/secrets/rhsm /etc/rhsm-host; \
     else \
     echo "Red Hat credentials not found; skipping subscription clean-up."; \
     fi
@@ -185,6 +210,7 @@ podman build -f Containerfile.subs \
     --platform "linux/$ARCH" \
     --no-cache \
     -t "local-$ARCH" .
+
 
 CONTAINER_ID=$(podman create "local-$ARCH")
 podman cp "${CONTAINER_ID}:/entitlements/." "entitlements/$ARCH/"

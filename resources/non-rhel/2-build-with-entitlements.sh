@@ -2,18 +2,19 @@
 set -e
 
 # Default values
-ARCH="amd64"
+ARCH=""  # Empty by default - will be detected from system if not specified
 ENTITLEMENTS_DIR="$HOME/.rh-entitlements"
 CONTAINERFILE="Containerfile"
 CONTEXT="."
 IMAGE=""
+ARCH_SPECIFIED=false
 
 usage() {
     echo "Usage: $0 [OPTIONS] -i IMAGE"
     echo ""
     echo "OPTIONS:"
     echo "  -i IMAGE             Container image name (required)"
-    echo "  -a ARCH              Architecture (default: x86_64)"
+    echo "  -a ARCH              Architecture (default: system architecture)"
     echo "  -e ENTITLEMENTS_DIR  Path to entitlements directory (default: ~/.rh-entitlements)"
     echo "  -f CONTAINERFILE     Path to Containerfile (default: Containerfile)"
     echo "  -c CONTEXT           Build context directory (default: .)"
@@ -21,15 +22,34 @@ usage() {
     echo "  -h                   Show this help message"
     echo ""
     echo "Examples:"
-    echo "  # Basic build"
+    echo "  # Basic build (uses system architecture)"
     echo "  $0 -i myregistry.com/myimage:latest"
     echo ""
-    echo "  # Build for arm64 with custom entitlements"
+    echo "  # Build for specific architecture"
     echo "  $0 -i myregistry.com/myimage:latest -a arm64 -e /path/to/entitlements"
     echo ""
     echo "  # Build with custom Containerfile"
     echo "  $0 -i myregistry.com/myimage:latest -f custom.Containerfile -c /path/to/context"
     exit 1
+}
+
+# Function to detect system architecture
+detect_arch() {
+    local sys_arch=$(uname -m)
+    case "$sys_arch" in
+        x86_64)
+            echo "amd64"
+            ;;
+        aarch64)
+            echo "arm64"
+            ;;
+        armv7l)
+            echo "arm"
+            ;;
+        *)
+            echo "$sys_arch"
+            ;;
+    esac
 }
 
 while getopts "i:a:e:s:f:c:t:Ph" opt; do
@@ -39,6 +59,7 @@ while getopts "i:a:e:s:f:c:t:Ph" opt; do
             ;;
         a)
             ARCH="$OPTARG"
+            ARCH_SPECIFIED=true
             ;;
         e)
             ENTITLEMENTS_DIR="$OPTARG"
@@ -75,6 +96,11 @@ if [ -z "$IMAGE" ]; then
     usage
 fi
 
+# If no architecture was specified, detect system architecture
+if [ -z "$ARCH" ]; then
+    ARCH=$(detect_arch)
+fi
+
 ENTITLEMENTS_DIR="${ENTITLEMENTS_DIR/#\~/$HOME}"
 CONTAINERFILE="${CONTAINERFILE/#\~/$HOME}"
 CONTEXT="${CONTEXT/#\~/$HOME}"
@@ -86,7 +112,11 @@ IMAGE="${IMAGE//\/\//\/}"
 
 echo "Bootc Build Configuration"
 echo "-------------------------"
-echo "Architecture: $ARCH"
+if [ "$ARCH_SPECIFIED" = true ]; then
+    echo "Architecture: $ARCH (explicitly specified)"
+else
+    echo "Architecture: $ARCH (system detected)"
+fi
 echo "Image: $IMAGE"
 echo "Containerfile: $CONTAINERFILE"
 echo "Build context: $CONTEXT"
@@ -128,14 +158,28 @@ else
   podman login "${BUILD_FROM%%/*}"
 fi
 
-
-echo "Enabling binfmt_misc for cross-arch builds..."
-podman run --rm --privileged docker.io/multiarch/qemu-user-static --reset -p yes 2>/dev/null \
-    || echo "binfmt setup completed (some handlers may have already existed)"
+# Only enable binfmt_misc for cross-arch builds when architecture is explicitly specified
+if [ "$ARCH_SPECIFIED" = true ]; then
+    echo "Enabling binfmt_misc for cross-arch builds..."
+    podman run --rm --privileged docker.io/multiarch/qemu-user-static --reset -p yes 2>/dev/null \
+        || echo "binfmt setup completed (some handlers may have already existed)"
+fi
 
 echo "Building image for $ARCH..."
 
-echo "podman build --platform $ARCH -f $CONTAINERFILE -t $IMAGE -v ${ENTITLEMENTS_DIR}:/run/secrets:z $CONTEXT"
+# Build the podman command
+PODMAN_CMD="podman build"
+
+# Only add --platform if architecture was explicitly specified
+if [ "$ARCH_SPECIFIED" = true ]; then
+    PODMAN_CMD="$PODMAN_CMD --platform linux/$ARCH"
+fi
+
+PODMAN_CMD="$PODMAN_CMD -f $CONTAINERFILE -t $IMAGE -v ${ENTITLEMENTS_DIR}/${ARCH}:/run/secrets:z $CONTEXT"
+
+echo "$PODMAN_CMD"
+
+
 podman build \
     --platform "linux/$ARCH" \
     -f "$CONTAINERFILE" \
@@ -143,6 +187,6 @@ podman build \
     -v "${ENTITLEMENTS_DIR}/${ARCH}:/run/secrets:z" \
     "$CONTEXT"
 
+
 echo "Build completed successfully!"
 echo "Image tagged as: $IMAGE"
-
