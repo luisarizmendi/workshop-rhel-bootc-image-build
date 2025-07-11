@@ -137,7 +137,7 @@ echo "Building image for $ARCH..."
 
 echo "podman build --platform $ARCH -f $CONTAINERFILE -t $IMAGE -v ${ENTITLEMENTS_DIR}:/run/secrets:z $CONTEXT"
 podman build \
-    --platform "$ARCH" \
+    --platform "linux/$ARCH" \
     -f "$CONTAINERFILE" \
     -t "$IMAGE" \
     -v "${ENTITLEMENTS_DIR}/${ARCH}:/run/secrets:z" \
