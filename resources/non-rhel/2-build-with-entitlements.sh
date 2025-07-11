@@ -8,7 +8,6 @@ PULL_SECRET_FILE="$HOME/.pull-secret.json"
 CONTAINERFILE="Containerfile"
 CONTEXT="."
 IMAGE=""
-PUSH_IMAGE=false
 
 usage() {
     echo "Usage: $0 [OPTIONS] -i IMAGE"
@@ -170,28 +169,3 @@ podman build \
 echo "Build completed successfully!"
 echo "Image tagged as: $IMAGE"
 
-
-# Push image if requested
-if [ "$PUSH_IMAGE" = true ]; then
-    echo "Pushing image: $IMAGE"
-    podman push --authfile "$PULL_SECRET_FILE" "$IMAGE"
-    
-    if [ "$IMAGE" != "$IMAGE" ]; then
-        echo "Pushing image: $IMAGE"
-        podman push --authfile "$PULL_SECRET_FILE" "$IMAGE"
-    fi
-    
-    echo "Push completed successfully!"
-fi
-
-echo ""
-echo "Summary:"
-echo "  Built image: $IMAGE"
-if [ "$IMAGE" != "$IMAGE" ]; then
-    echo "  Also tagged as: $IMAGE"
-fi
-if [ "$PUSH_IMAGE" = true ]; then
-    echo "  Pushed to registry: Yes"
-else
-    echo "  Pushed to registry: No (use -P to push)"
-fi

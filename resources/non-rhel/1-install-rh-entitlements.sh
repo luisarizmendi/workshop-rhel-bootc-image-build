@@ -80,7 +80,6 @@ done
 
 shift $((OPTIND-1))
 
-# Function to read credentials from file
 read_credentials_file() {
     local file="$1"
     if [ -f "$file" ]; then
@@ -91,23 +90,21 @@ read_credentials_file() {
     return 1
 }
 
+CREDENTIAL_SOURCE=""
+
 # Credential priority: command line > environment variables > credentials file > default credentials file
-if [ -z "$USERNAME" ] || [ -z "$PASSWORD" ]; then
-    # Try environment variables
-    if [ -n "$RH_USERNAME" ] && [ -n "$RH_PASSWORD" ]; then
-        USERNAME="$RH_USERNAME"
-        PASSWORD="$RH_PASSWORD"
-        echo "Using credentials from environment variables"
-    # Try specified credentials file
-    elif [ -n "$CREDENTIALS_FILE" ] && read_credentials_file "$CREDENTIALS_FILE"; then
-        echo "Using credentials from file: $CREDENTIALS_FILE"
-    # Try default credentials file
-    elif read_credentials_file "$HOME/.rh-credentials"; then
-        echo "Using credentials from default file: $HOME/.rh-credentials"
-    fi
+if [ -n "$USERNAME" ] && [ -n "$PASSWORD" ]; then
+    CREDENTIAL_SOURCE="command line"
+elif [ -n "$RH_USERNAME" ] && [ -n "$RH_PASSWORD" ]; then
+    USERNAME="$RH_USERNAME"
+    PASSWORD="$RH_PASSWORD"
+    CREDENTIAL_SOURCE="environment variables"
+elif [ -n "$CREDENTIALS_FILE" ] && read_credentials_file "$CREDENTIALS_FILE"; then
+    CREDENTIAL_SOURCE="credentials file: $CREDENTIALS_FILE"
+elif read_credentials_file "$HOME/.rh-credentials"; then
+    CREDENTIAL_SOURCE="default credentials file: $HOME/.rh-credentials"
 fi
 
-# Check for required credentials
 if [ -z "$USERNAME" ] || [ -z "$PASSWORD" ]; then
     echo "Error: Red Hat credentials are required."
     echo "Please provide credentials using one of these methods:"
@@ -128,9 +125,9 @@ echo "Architecture: $ARCH"
 echo "Pull-Secret file: $PULL_SECRET_FILE"
 echo "Entitlements directory for $ARCH: ${ENTITLEMENTS_DIR}/${ARCH}"
 echo "Username: $USERNAME"
+echo "Using credentials from $CREDENTIAL_SOURCE"
 echo "---------------------"
 echo ""
-
 
 if [ ! -d "${ENTITLEMENTS_DIR}/${ARCH}" ]; then
     mkdir -p ${ENTITLEMENTS_DIR}/${ARCH}
@@ -146,7 +143,7 @@ if [ ! -f "$PULL_SECRET_FILE" ]; then
     echo "Red Hat pull-secret not found at $PULL_SECRET_FILE"
     exit 1
 else
-    echo "Using provided username and password for Red Hat credentials"
+    echo "pull-secret found!"
 fi
 
 if [[ "$(uname -m)" != "$ARCH" ]]; then
@@ -192,6 +189,7 @@ podman build -f Containerfile.subs \
     --build-arg RH_USERNAME="$USERNAME" \
     --build-arg RH_PASSWORD="$PASSWORD" \
     --platform "$ARCH" \
+    --no-cache \
     -t "local-$ARCH" .
 
 CONTAINER_ID=$(podman create "local-$ARCH")
