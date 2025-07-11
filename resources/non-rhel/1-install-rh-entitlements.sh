@@ -2,7 +2,6 @@
 
 # Default values
 ARCH="x86_64"
-PULL_SECRET_FILE="$HOME/.pull-secret.json"
 ENTITLEMENTS_DIR="$HOME/.rh-entitlements"
 USERNAME=""
 PASSWORD=""
@@ -15,7 +14,6 @@ usage() {
     echo ""
     echo "OPTIONS:"
     echo "  -a ARCH              Architecture (default: x86_64)"
-    echo "  -s PULL_SECRET_FILE  Path to pull secret file (default: ~/.pull-secret.json)"
     echo "  -e ENTITLEMENTS_DIR  Path to entitlements directory (default: ~/.rh-entitlements)"
     echo "  -u USERNAME          Red Hat username (optional, can use RH_USERNAME env var)"
     echo "  -p PASSWORD          Red Hat password (optional, can use RH_PASSWORD env var)"
@@ -48,9 +46,6 @@ while getopts "a:s:e:u:p:c:h" opt; do
     case $opt in
         a)
             ARCH="$OPTARG"
-            ;;
-        s)
-            PULL_SECRET_FILE="$OPTARG"
             ;;
         e)
             ENTITLEMENTS_DIR="$OPTARG"
@@ -116,13 +111,11 @@ if [ -z "$USERNAME" ] || [ -z "$PASSWORD" ]; then
     usage
 fi
 
-PULL_SECRET_FILE="${PULL_SECRET_FILE/#\~/$HOME}"
 ENTITLEMENTS_DIR="${ENTITLEMENTS_DIR/#\~/$HOME}"
 
 echo "Checking entitlements"
 echo "---------------------"
 echo "Architecture: $ARCH"
-echo "Pull-Secret file: $PULL_SECRET_FILE"
 echo "Entitlements directory for $ARCH: ${ENTITLEMENTS_DIR}/${ARCH}"
 echo "Username: $USERNAME"
 echo "Using credentials from $CREDENTIAL_SOURCE"
@@ -139,12 +132,6 @@ if [ -d "${ENTITLEMENTS_DIR}/${ARCH}" ] && find "${ENTITLEMENTS_DIR}/${ARCH}" -m
     exit 0
 fi
 
-if [ ! -f "$PULL_SECRET_FILE" ]; then
-    echo "Red Hat pull-secret not found at $PULL_SECRET_FILE"
-    exit 1
-else
-    echo "pull-secret found!"
-fi
 
 if [[ "$(uname -m)" != "$ARCH" ]]; then
     echo "Enabling binfmt_misc for cross-arch builds..."
@@ -184,8 +171,10 @@ EOF
 
 echo "Building entitlement container for $ARCH..."
 mkdir -p entitlements/$ARCH
+
+podman login -u $USERNAME -p $PASSWORD registry.redhat.io
+
 podman build -f Containerfile.subs \
-    --authfile "$PULL_SECRET_FILE" \
     --build-arg RH_USERNAME="$USERNAME" \
     --build-arg RH_PASSWORD="$PASSWORD" \
     --platform "$ARCH" \
