@@ -124,7 +124,6 @@ if [ ! -d "${ENTITLEMENTS_DIR}/${ARCH}" ]; then
     exit 1
 fi
 
-# Check if entitlements directory is empty
 if [ -z "$(ls -A "${ENTITLEMENTS_DIR}/${ARCH}")" ]; then
     echo "Error: Entitlements directory is empty at ${ENTITLEMENTS_DIR}/${ARCH}"
     echo "Please run the entitlements script first to generate entitlements for $ARCH"
