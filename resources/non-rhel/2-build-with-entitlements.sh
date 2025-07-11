@@ -2,9 +2,8 @@
 set -e
 
 # Default values
-ARCH="x86_64"
+ARCH="amd64"
 ENTITLEMENTS_DIR="$HOME/.rh-entitlements"
-PULL_SECRET_FILE="$HOME/.pull-secret.json"
 CONTAINERFILE="Containerfile"
 CONTEXT="."
 IMAGE=""
@@ -16,7 +15,6 @@ usage() {
     echo "  -i IMAGE             Container image name (required)"
     echo "  -a ARCH              Architecture (default: x86_64)"
     echo "  -e ENTITLEMENTS_DIR  Path to entitlements directory (default: ~/.rh-entitlements)"
-    echo "  -s PULL_SECRET_FILE  Path to pull secret file (default: ~/.pull-secret.json)"
     echo "  -f CONTAINERFILE     Path to Containerfile (default: Containerfile)"
     echo "  -c CONTEXT           Build context directory (default: .)"
     echo "  -P                   Push image after build (default: false)"
@@ -44,9 +42,6 @@ while getopts "i:a:e:s:f:c:t:Ph" opt; do
             ;;
         e)
             ENTITLEMENTS_DIR="$OPTARG"
-            ;;
-        s)
-            PULL_SECRET_FILE="$OPTARG"
             ;;
         f)
             CONTAINERFILE="$OPTARG"
@@ -81,7 +76,6 @@ if [ -z "$IMAGE" ]; then
 fi
 
 ENTITLEMENTS_DIR="${ENTITLEMENTS_DIR/#\~/$HOME}"
-PULL_SECRET_FILE="${PULL_SECRET_FILE/#\~/$HOME}"
 CONTAINERFILE="${CONTAINERFILE/#\~/$HOME}"
 CONTEXT="${CONTEXT/#\~/$HOME}"
 
@@ -96,17 +90,11 @@ echo "Architecture: $ARCH"
 echo "Image: $IMAGE"
 echo "Containerfile: $CONTAINERFILE"
 echo "Build context: $CONTEXT"
-echo "Pull-Secret file: $PULL_SECRET_FILE"
 echo "Entitlements directory: ${ENTITLEMENTS_DIR}/${ARCH}"
-echo "Push after build: $PUSH_IMAGE"
 echo "-------------------------"
 echo ""
 
 # Validate required files and directories
-if [ ! -f "$PULL_SECRET_FILE" ]; then
-    echo "Error: Pull secret file not found at $PULL_SECRET_FILE"
-    exit 1
-fi
 
 if [ ! -f "$CONTAINERFILE" ]; then
     echo "Error: Containerfile not found at $CONTAINERFILE"
@@ -130,22 +118,25 @@ if [ -z "$(ls -A "${ENTITLEMENTS_DIR}/${ARCH}")" ]; then
     exit 1
 fi
 
-# Setup cross-architecture support if needed
-if [[ "$(uname -m)" != "$ARCH" ]]; then
-    echo "Enabling binfmt_misc for cross-arch builds..."
-    podman run --rm --privileged docker.io/multiarch/qemu-user-static --reset -p yes 2>/dev/null \
-        || echo "binfmt setup completed (some handlers may have already existed)"
+
+# Registry login
+BUILD_FROM=$(grep -i '^FROM ' "${CONTEXT}/${CONTAINERFILE}" | head -n1 | awk '{print $2}')
+if podman login --get-login "${BUILD_FROM%%/*}" &>/dev/null; then
+  echo "Already logged in to ${BUILD_FROM%%/*} as $(podman login --get-login "${BUILD_FROM%%/*}")"
 else
-    echo "Host architecture matches target ($ARCH), no binfmt setup needed."
+  echo "Not logged in to ${BUILD_FROM%%/*}!"
+  podman login "${BUILD_FROM%%/*}"
 fi
+
+
+echo "Enabling binfmt_misc for cross-arch builds..."
+podman run --rm --privileged docker.io/multiarch/qemu-user-static --reset -p yes 2>/dev/null \
+    || echo "binfmt setup completed (some handlers may have already existed)"
 
 echo "Building image for $ARCH..."
 
-echo "Running: build --authfile $PULL_SECRET_FILE --platform $ARCH -f $CONTAINERFILE -t $IMAGE -v ${ENTITLEMENTS_DIR}:/run/secrets:z $CONTEXT"
-
-
+echo "podman build --platform $ARCH -f $CONTAINERFILE -t $IMAGE -v ${ENTITLEMENTS_DIR}:/run/secrets:z $CONTEXT"
 podman build \
-    --authfile "$PULL_SECRET_FILE" \
     --platform "$ARCH" \
     -f "$CONTAINERFILE" \
     -t "$IMAGE" \

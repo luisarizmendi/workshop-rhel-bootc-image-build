@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Default values
-ARCH="x86_64"
+ARCH="amd64"
 ENTITLEMENTS_DIR="$HOME/.rh-entitlements"
 USERNAME=""
 PASSWORD=""
@@ -13,7 +13,7 @@ usage() {
     echo "Usage: $0 [OPTIONS]"
     echo ""
     echo "OPTIONS:"
-    echo "  -a ARCH              Architecture (default: x86_64)"
+    echo "  -a ARCH              Architecture: amd64 or arm64. Default: amd64"
     echo "  -e ENTITLEMENTS_DIR  Path to entitlements directory (default: ~/.rh-entitlements)"
     echo "  -u USERNAME          Red Hat username (optional, can use RH_USERNAME env var)"
     echo "  -p PASSWORD          Red Hat password (optional, can use RH_PASSWORD env var)"
@@ -133,13 +133,20 @@ if [ -d "${ENTITLEMENTS_DIR}/${ARCH}" ] && find "${ENTITLEMENTS_DIR}/${ARCH}" -m
 fi
 
 
-if [[ "$(uname -m)" != "$ARCH" ]]; then
-    echo "Enabling binfmt_misc for cross-arch builds..."
-    podman run --rm --privileged docker.io/multiarch/qemu-user-static --reset -p yes 2>/dev/null \
-        || echo "binfmt setup completed (some handlers may have already existed)"
+# Registry login
+if podman login --get-login "${SUBS_FROM%%/*}" &>/dev/null; then
+  echo "Already logged in to ${SUBS_FROM%%/*} as $(podman login --get-login "${SUBS_FROM%%/*}")"
 else
-    echo "Host architecture matches target ($ARCH), no binfmt setup needed."
+  echo "Not logged in to ${SUBS_FROM%%/*}. Logging in..."
+  podman login -u "$USERNAME" -p "$PASSWORD" "${SUBS_FROM%%/*}"
 fi
+
+
+
+echo "Enabling binfmt_misc for cross-arch builds..."
+podman run --rm --privileged docker.io/multiarch/qemu-user-static --reset -p yes 2>/dev/null \
+    || echo "binfmt setup completed (some handlers may have already existed)"
+
 
 echo "Getting entitlements for $ARCH..."
 
@@ -172,12 +179,10 @@ EOF
 echo "Building entitlement container for $ARCH..."
 mkdir -p entitlements/$ARCH
 
-podman login -u $USERNAME -p $PASSWORD registry.redhat.io
-
 podman build -f Containerfile.subs \
     --build-arg RH_USERNAME="$USERNAME" \
     --build-arg RH_PASSWORD="$PASSWORD" \
-    --platform "$ARCH" \
+    --platform "linux/$ARCH" \
     --no-cache \
     -t "local-$ARCH" .
 
