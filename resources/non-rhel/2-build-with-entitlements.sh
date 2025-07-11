@@ -73,7 +73,6 @@ done
 
 shift $((OPTIND-1))
 
-# Check for required parameters
 if [ -z "$IMAGE" ]; then
     echo "Error: Image name is required."
     echo "Use -i to specify the container image name."
@@ -81,13 +80,11 @@ if [ -z "$IMAGE" ]; then
     usage
 fi
 
-# Expand tilde in paths
 ENTITLEMENTS_DIR="${ENTITLEMENTS_DIR/#\~/$HOME}"
 PULL_SECRET_FILE="${PULL_SECRET_FILE/#\~/$HOME}"
 CONTAINERFILE="${CONTAINERFILE/#\~/$HOME}"
 CONTEXT="${CONTEXT/#\~/$HOME}"
 
-# Clean up image name (remove protocol prefixes and normalize slashes)
 IMAGE="${IMAGE#http://}"
 IMAGE="${IMAGE#https://}"
 IMAGE="${IMAGE//\/\//\/}"
@@ -142,16 +139,6 @@ if [[ "$(uname -m)" != "$ARCH" ]]; then
 else
     echo "Host architecture matches target ($ARCH), no binfmt setup needed."
 fi
-
-# Set SELinux context for entitlements directory
-#echo "Setting SELinux context for entitlements directory..."
-#if command -v chcon >/dev/null 2>&1; then
-#    sudo chcon -R -t container_file_t "$ENTITLEMENTS_DIR" 2>/dev/null || {
-#        echo "Warning: Could not set SELinux context. Continuing without SELinux labeling."
-#    }
-#else
-#    echo "chcon not available, skipping SELinux context setup."
-#fi
 
 echo "Building image for $ARCH..."
 
