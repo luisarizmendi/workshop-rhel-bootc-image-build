@@ -148,6 +148,7 @@ echo "---------------------"
 echo ""
 
 if [ ! -d "${ENTITLEMENTS_DIR}/${ARCH}" ]; then
+    echo "Creating entitlement directory for ${ARCH}"
     mkdir -p ${ENTITLEMENTS_DIR}/${ARCH}
 fi
 

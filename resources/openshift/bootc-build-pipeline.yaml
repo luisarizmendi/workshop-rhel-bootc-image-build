@@ -4,7 +4,7 @@ kind: Namespace
 metadata:
   name: bootc-build
   annotations:
-    argocd.argoproj.io/sync-wave: "2"
+    argocd.argoproj.io/sync-wave: "0"
 
 ---
 apiVersion: v1
@@ -13,7 +13,7 @@ metadata:
   name: bootc-build-git-repo
   namespace: bootc-build
   annotations:
-    argocd.argoproj.io/sync-wave: "5"
+    argocd.argoproj.io/sync-wave: "1"
 spec:
   #storageClassName: nfs-csi
   accessModes:
@@ -28,7 +28,7 @@ metadata:
   name: bootc-build-conatiner-storage
   namespace: bootc-build
   annotations:
-    argocd.argoproj.io/sync-wave: "5"
+    argocd.argoproj.io/sync-wave: "1"
 spec:
   #storageClassName: nfs-csi
   accessModes:
@@ -43,7 +43,7 @@ metadata:
   name: bootc-exports
   namespace: bootc-build
   annotations:
-    argocd.argoproj.io/sync-wave: "5"
+    argocd.argoproj.io/sync-wave: "1"
 spec:
   #storageClassName: nfs-csi
   accessModes:
@@ -58,7 +58,7 @@ metadata:
   name: bootc-build-entitlements
   namespace: bootc-build
   annotations:
-    argocd.argoproj.io/sync-wave: "5"
+    argocd.argoproj.io/sync-wave: "1"
 spec:
   #storageClassName: nfs-csi
   accessModes:
@@ -74,7 +74,7 @@ metadata:
   name: custom-containers-conf
   namespace: bootc-build
   annotations:
-    argocd.argoproj.io/sync-wave: "5"
+    argocd.argoproj.io/sync-wave: "1"
 data:
   containers.conf: |
     [engine]
@@ -87,7 +87,7 @@ metadata:
   name: gather-rh-entitlements
   namespace: bootc-build
   annotations:
-    argocd.argoproj.io/sync-wave: "5"
+    argocd.argoproj.io/sync-wave: "1"
     argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
 spec:
   params:
@@ -209,7 +209,7 @@ metadata:
   name: bootc-build
   namespace: bootc-build
   annotations:
-    argocd.argoproj.io/sync-wave: "5"
+    argocd.argoproj.io/sync-wave: "1"
     argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
 spec:
   params:
@@ -305,7 +305,7 @@ metadata:
   name: create-multiarch-manifest
   namespace: bootc-build
   annotations:
-    argocd.argoproj.io/sync-wave: "5"
+    argocd.argoproj.io/sync-wave: "1"
     argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
 spec:
   params:
@@ -396,7 +396,7 @@ metadata:
   name: bootc-multi-export
   namespace: bootc-build
   annotations:
-    argocd.argoproj.io/sync-wave: "5"
+    argocd.argoproj.io/sync-wave: "1"
     argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
 
 spec:
@@ -570,7 +570,7 @@ metadata:
   name: upload-files-object-storage
   namespace: bootc-build
   annotations:
-    argocd.argoproj.io/sync-wave: "5"
+    argocd.argoproj.io/sync-wave: "1"
     argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
 spec:
   params:
@@ -634,7 +634,7 @@ metadata:
   name: git-clone-and-copy-subpath
   namespace: bootc-build
   annotations:
-    argocd.argoproj.io/sync-wave: "5"
+    argocd.argoproj.io/sync-wave: "1"
     argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
 spec:
   params:
@@ -670,7 +670,7 @@ metadata:
   name: check-array-empty
   namespace: bootc-build
   annotations:
-    argocd.argoproj.io/sync-wave: "5"
+    argocd.argoproj.io/sync-wave: "1"
     argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
 spec:
   params:
@@ -700,167 +700,129 @@ spec:
 
 
 
+
+
+
+
+
+
+
+
+
+---
+apiVersion: security.openshift.io/v1
+kind: SecurityContextConstraints
+metadata:
+  name: podman-multiarch
+allowPrivilegedContainer: true
+allowHostDirVolumePlugin: false
+allowHostNetwork: false
+allowHostPorts: false
+allowHostPID: false
+allowHostIPC: false
+runAsUser:
+  type: RunAsAny
+seLinuxContext:
+  type: RunAsAny
+fsGroup:
+  type: RunAsAny
+supplementalGroups:
+  type: RunAsAny
+readOnlyRootFilesystem: false
+volumes:
+  - configMap
+  - emptyDir
+  - projected
+  - secret
+  - persistentVolumeClaim
+  - downwardAPI
+  - ephemeral
+  - hostPath
+users: []
+groups: []
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: scc-admin
+  namespace: bootc-build
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: scc-admin-cluster-admin
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-admin
+subjects:
+  - kind: ServiceAccount
+    name: scc-admin
+    namespace: bootc-build
 ---
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: bootc-build-pipelines-permissions
-  namespace: openshift-gitops
-  annotations:
-    argocd.argoproj.io/sync-wave: "4"
+  name: patch-scc-job
+  namespace: bootc-build
 spec:
   template:
     spec:
-      serviceAccountName: openshift-gitops-argocd-application-controller
+      serviceAccountName: scc-admin
       containers:
-      - name: shell
-        image: quay.io/luisarizmendi/ocp-job:latest  
-        command: ["/bin/sh", "-c"]
-        args:
+      - name: patch-scc
+        image: quay.io/openshift/origin-cli:latest
+        command:
+        - /bin/bash
+        - -c
         - |
-
-          apply_with_retries() {
-            local attempt=0
-            local max_attempts=5
-            local delay=5
-
-            while true; do
-              if "$@"; then
-                echo "Apply succeeded: $*"
-                return 0
-              fi
-
-              attempt=$(( attempt + 1 ))
-              if [ "$attempt" -ge "$max_attempts" ]; then
-                echo "Apply failed after $max_attempts attempts: $*"
-                return 1
-              fi
-
-              echo "Apply failed, retrying in $delay seconds... (attempt $attempt)"
-              sleep "$delay"
-            done
-          }
-
-          echo "Creating custom SCC for pipelines"
-          apply_with_retries oc apply -f - <<EOF
-          apiVersion: security.openshift.io/v1
-          kind: SecurityContextConstraints
-          metadata:
-            name: podman-multiarch
-          allowPrivilegedContainer: true
-          allowHostDirVolumePlugin: false
-          allowHostNetwork: false
-          allowHostPorts: false
-          allowHostPID: false
-          allowHostIPC: false
-          runAsUser:
-            type: RunAsAny
-          seLinuxContext:
-            type: RunAsAny
-          fsGroup:
-            type: RunAsAny
-          supplementalGroups:
-            type: RunAsAny
-          readOnlyRootFilesystem: false
-          volumes:
-            - configMap
-            - emptyDir
-            - projected
-            - secret
-            - persistentVolumeClaim
-            - downwardAPI
-            - ephemeral
-            - hostPath
-          users: []
-          groups: []
-          EOF
-
-          while true; do
-              if oc get tasks.tekton.dev -n default &> /dev/null; then
-                  echo "Tekton API (tekton.dev/v1) is ready"
-                  break
-              fi
-            sleep 10
-          done
-
-
-          echo "Adding podman-multiarch"
-          sa="system:serviceaccount:bootc-build:pipeline"
-          echo "Patching SCC to add $sa..."
-          if ! oc get scc podman-multiarch -o jsonpath='{.users}' | grep -q "$sa"; then
-            echo "Adding $sa to SCC podman-multiarch..."
-            oc patch scc podman-multiarch --type=json \
-              -p="[{'op': 'add', 'path': '/users/-', 'value': \"$sa\"}]"
-          else
-            echo "$sa already present in podman-multiarch SCC"
-          fi
-
-
-
-          echo "Creating cross-namespace-pipeline-runner"
-          apply_with_retries  oc apply -f - <<EOFUP
-          ---
-          apiVersion: rbac.authorization.k8s.io/v1
-          kind: ClusterRole
-          metadata:
-            name: cross-namespace-pipeline-runner
-          rules:
-          - apiGroups: ["tekton.dev"]
-            resources: ["pipelineruns"]
-            verbs: ["create", "get", "list", "watch", "delete", "update"]
-
-          ---
-          apiVersion: rbac.authorization.k8s.io/v1
-          kind: ClusterRoleBinding
-          metadata:
-            name: pipeline-cross-namespace-binding
-          roleRef:
-            apiGroup: rbac.authorization.k8s.io
-            kind: ClusterRole
-            name: cross-namespace-pipeline-runner
-          subjects:
-          - kind: ServiceAccount
-            name: pipeline-runner-dspa
-            namespace: bootc-build
-          EOFUP
-
-          echo "Creating pipeline ServiceAccount"
-          apply_with_retries  oc apply -f - <<EOFUP
-          ---
-          apiVersion: v1
-          kind: ServiceAccount
-          metadata:
-            name: pipeline
-            namespace: bootc-build
-          secrets:
-            - name: registry-push-secret
-          ---
-          apiVersion: rbac.authorization.k8s.io/v1
-          kind: RoleBinding
-          metadata:
-            name: pipeline-bootc-build
-            namespace: bootc-build
-          subjects:
-          - kind: ServiceAccount
-            name: pipeline
-            namespace: bootc-build
-          roleRef:
-            kind: ClusterRole
-            name: admin
-            apiGroup: rbac.authorization.k8s.io
-          EOFUP
-          
-          echo "Environment ready!"
-        securityContext:
-          allowPrivilegeEscalation: false
-          capabilities:
-            drop:
-              - "ALL"
-          runAsNonRoot: true
-          seccompProfile:
-            type: RuntimeDefault
+          echo "Patching SCC..."
+          oc patch scc podman-multiarch --type=json \
+            -p='[{"op": "add", "path": "/users/-", "value": "system:serviceaccount:bootc-build:pipeline"}]'
+        resources:
+          requests:
+            cpu: 100m
+            memory: 100Mi
       restartPolicy: OnFailure
-  backoffLimit: 1
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: cross-namespace-pipeline-runner
+rules:
+- apiGroups: ["tekton.dev"]
+  resources: ["pipelineruns"]
+  verbs: ["create", "get", "list", "watch", "delete", "update"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: pipeline-cross-namespace-binding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cross-namespace-pipeline-runner
+subjects:
+- kind: ServiceAccount
+  name: pipeline-runner-dspa
+  namespace: bootc-build
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: pipeline-bootc-build
+  namespace: bootc-build
+subjects:
+- kind: ServiceAccount
+  name: pipeline
+  namespace: bootc-build
+roleRef:
+  kind: ClusterRole
+  name: admin
+  apiGroup: rbac.authorization.k8s.io
+
 
 ---
 apiVersion: tekton.dev/v1
@@ -869,7 +831,7 @@ metadata:
   name: bootc-image-build-multiarch
   namespace: bootc-build
   annotations:
-    argocd.argoproj.io/sync-wave: "6"
+    argocd.argoproj.io/sync-wave: "2"
     argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
 spec:
   params:
