@@ -15,8 +15,9 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "1"
 spec:
+  storageClassName: nfs-csi
   accessModes:
-    - ReadWriteOnce
+    - ReadWriteMany
   resources:
     requests:
       storage: 5Gi
@@ -29,8 +30,9 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "1"
 spec:
+  storageClassName: nfs-csi
   accessModes:
-    - ReadWriteOnce
+    - ReadWriteMany
   resources:
     requests:
       storage: 15Gi
@@ -43,8 +45,9 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "1"
 spec:
+  storageClassName: nfs-csi
   accessModes:
-    - ReadWriteOnce
+    - ReadWriteMany
   resources:
     requests:
       storage: 100Mi
@@ -388,7 +391,7 @@ spec:
       type: string
       default: ""
     - name: bootc-build-export-formats
-      description: "Array of target file extensions (e.g., ['anaconda-iso','qcow2','vmdk','ami','raw','vhd','gce'])"
+      description: "Array of target file extensions (e.g., ['anaconda-iso','qcow2','vmdk','raw'])"
       type: array
       default: []
     - name: bootc-build-platforms
@@ -550,8 +553,8 @@ spec:
 
         sudo chown -R $(whoami):$(whoami) "/bootc-exports/$(echo "$PLATFORM_ITEM" | sed 's|linux/||')/$DIR_NAME"
 
-        OCI_DISK_IMAGE_REPO=${IMAGE%%:*}-${FORMAT_ITEM}
-        OCI_IMAGE_TAG=${IMAGE##*:}
+        OCI_DISK_IMAGE_REPO=${IMAGE%%:*}/diskimage-${FORMAT_ITEM}
+        OCI_IMAGE_TAG=${IMAGE##*:}-${ARCH}
 
         echo "Creating manifest with export"
         sudo podman manifest create \
@@ -573,19 +576,7 @@ spec:
                 ;;
             "raw")
                 ARTIFACT_TYPE="application/vnd.diskimage.raw"
-                FILE_PATH="/bootc-exports/$(echo "$PLATFORM_ITEM" | sed 's|linux/||')/$DIR_NAME/raw/disk.raw"
-                ;;
-            "vhd")
-                ARTIFACT_TYPE="application/vnd.diskimage.vhd"
-                FILE_PATH="/bootc-exports/$(echo "$PLATFORM_ITEM" | sed 's|linux/||')/$DIR_NAME/vhd/disk.vhd"
-                ;;
-            "ami")
-                ARTIFACT_TYPE="application/vnd.diskimage.ami"
-                FILE_PATH="/bootc-exports/$(echo "$PLATFORM_ITEM" | sed 's|linux/||')/$DIR_NAME/ami/disk.raw"
-                ;;
-            "gce")
-                ARTIFACT_TYPE="application/vnd.diskimage.gce"
-                FILE_PATH="/bootc-exports/$(echo "$PLATFORM_ITEM" | sed 's|linux/||')/$DIR_NAME/gce/disk.tar.gz"
+                FILE_PATH="/bootc-exports/$(echo "$PLATFORM_ITEM" | sed 's|linux/||')/$DIR_NAME/image/disk.raw"
                 ;;
             *)
                 echo "Unknown format: ${FORMAT_ITEM}"
@@ -593,8 +584,11 @@ spec:
                 ;;
         esac
 
+
+        echo "Using platform: $PLATFORM_ITEM"
         echo "Using artifact type: $ARTIFACT_TYPE"
         echo "Using file path: $FILE_PATH"
+        echo "Using image: ${OCI_DISK_IMAGE_REPO}:${OCI_IMAGE_TAG}"
 
         # Check if the file exists
         if [ ! -f "$FILE_PATH" ]; then
@@ -607,15 +601,14 @@ spec:
         echo "Adding image with export to manifest"
         sudo podman manifest add \
             --artifact --artifact-type $ARTIFACT_TYPE \
-            --arch $PLATFORM_ITEM \
+            --arch $ARCH --os=linux \
             ${OCI_DISK_IMAGE_REPO}:${OCI_IMAGE_TAG} \
             "$FILE_PATH"
 
         echo "Pushing manifest"
-        sudo podman manifest push --all \
+        sudo podman manifest push --authfile=/root/push-registry-secret/.dockerconfigjson  --all \
             ${OCI_DISK_IMAGE_REPO}:${OCI_IMAGE_TAG} \
             docker://${OCI_DISK_IMAGE_REPO}:${OCI_IMAGE_TAG}
-
 
 
 ---

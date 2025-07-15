@@ -1,7 +1,7 @@
 apiVersion: tekton.dev/v1
 kind: PipelineRun
 metadata:
-  generateName: bootc-image-build-multiarch-
+  name: bootc-build-multiarch-iso-qcow2
   labels:
     tekton.dev/pipeline: bootc-image-build-multiarch
 spec:
@@ -154,9 +154,6 @@ spec:
     - name: push-registry-secret
       secret:
         secretName: push-registry-secret
-    - name: object-storage-credentials
-      secret:
-        secretName: user99-bootc-exports
     - emptyDir: {}
       name: bootc-exports
     - emptyDir: {}
