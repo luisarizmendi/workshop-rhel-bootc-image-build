@@ -1,3 +1,12 @@
+###
+#
+# NOTE: You will also need ReadWriteMany volumes. In order to simplify that you can create an nfs-csi storage class
+#       with the manifests that you can find in the "nfs-storage" directory. If you already have another storage class
+#       with that capability, change the "storageClassName" definition in the manifests below with your storage class name.
+#
+##
+
+
 ---
 apiVersion: v1
 kind: Namespace

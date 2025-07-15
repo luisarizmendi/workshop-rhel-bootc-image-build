@@ -1,7 +1,8 @@
 ###
 #
 # NOTE: At this moment the cross-arch build works (you can build an x86 image in an ARM system and viceversa),
-#        but the export does not, so if you want to export from an ARM container image you will need an ARM node in your cluster
+#       but the export does not, so if you want to export from an ARM container image you will need an ARM node in your cluster.
+#       You will also need ReadWriteMany volumes. 
 #
 ##
 
