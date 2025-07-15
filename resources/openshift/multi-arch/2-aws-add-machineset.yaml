@@ -19,11 +19,11 @@ apiVersion: batch/v1
 kind: Job
 metadata:
   name: create-machineset
-  namespace: openshift-gitops
+  namespace: openshift
 spec:
   template:
     spec:
-      serviceAccountName: openshift-gitops-argocd-application-controller
+      serviceAccountName: scc-admin
       restartPolicy: Never
       containers:
       - name: create-machineset

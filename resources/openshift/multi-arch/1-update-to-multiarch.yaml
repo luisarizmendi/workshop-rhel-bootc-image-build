@@ -11,17 +11,37 @@
 # 
 ################
 
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: scc-admin
+  namespace: openshift
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: scc-admin-openshift
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-admin
+subjects:
+  - kind: ServiceAccount
+    name: scc-admin
+    namespace: openshift
+---
 
 
 apiVersion: batch/v1
 kind: Job
 metadata:
   name: update-to-multiarch
-  namespace: openshift-gitops
+  namespace: openshift
 spec:
   template:
     spec:
-      serviceAccountName: openshift-gitops-argocd-application-controller
+      serviceAccountName: scc-admin
       restartPolicy: Never
       containers:
       - name: bootstrap-arm
