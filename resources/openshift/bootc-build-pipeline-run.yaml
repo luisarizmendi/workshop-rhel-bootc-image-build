@@ -1,17 +1,17 @@
 apiVersion: tekton.dev/v1
 kind: PipelineRun
 metadata:
-  name: bootc-image-build-multiarch
+  generateName: bootc-image-build-multiarch-
   labels:
     tekton.dev/pipeline: bootc-image-build-multiarch
 spec:
   params:
     - name: bootc-build-files-repo-url
-      value: 'https://github.com/luisarizmendi/workshop-moving-ai-to-the-edge'
+      value: 'https://github.com/luisarizmendi/workshop-rhel-bootc-image-build'  
     - name: bootc-build-files-repo-branch
       value: main
     - name: bootc-build-files-repo-subpath
-      value: resources/solutions/platform-specialist/image-building/devices/default
+      value: resources/example-image
     - name: bootc-image-name
       value: 'quay.io/luisarizmendi/myrhel:test'
     - name: bootc-build-export-formats
@@ -148,18 +148,17 @@ spec:
     - name: shared-container-storage
       persistentVolumeClaim:
         claimName: bootc-build-conatiner-storage
-    - name: bootc-exports
-      persistentVolumeClaim:
-        claimName: bootc-exports
-    - name: redhat-pull-secret
+    - name: redhat-registry-secret
       secret:
-        secretName: redhat-pull-secret
-    - name: registry-push-secret
+        secretName: redhat-registry-secret
+    - name: push-registry-secret
       secret:
-        secretName: quay-local-push-secret
+        secretName: push-registry-secret
     - name: object-storage-credentials
       secret:
         secretName: user99-bootc-exports
+    - emptyDir: {}
+      name: bootc-exports
     - emptyDir: {}
       name: store-amd64
     - emptyDir: {}

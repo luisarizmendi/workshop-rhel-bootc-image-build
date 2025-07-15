@@ -179,7 +179,7 @@ fi
 echo "Exporting image to ..."
 
 # export command
-EXPORT_CMD="sudo podman run --rm -it --privileged --pull=newer --security-opt label=type:unconfined_t   -v ${ENTITLEMENTS_DIR}/${ARCH}:/run/secrets:z  -v $CONFIG_FILE:/config.toml:ro -v $OUTPUT_DIR:/output -v /var/lib/containers/storage:/var/lib/containers/storage"
+EXPORT_CMD="sudo podman run --rm -it --privileged --pull=newer --security-opt label=type:unconfined_t   -v ${ENTITLEMENTS_DIR}/${ARCH}:/run/secrets:Z  -v $CONFIG_FILE:/config.toml:ro -v $OUTPUT_DIR:/output -v /var/lib/containers/storage:/var/lib/containers/storage"
 
 
   
