@@ -817,6 +817,35 @@ roleRef:
   apiGroup: rbac.authorization.k8s.io
 
 
+
+
+---
+# https://access.redhat.com/solutions/7128120
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: patch-tekton-config-coschedule
+  namespace: tools-rhel-image
+spec:
+  template:
+    spec:
+      serviceAccountName: scc-admin
+      containers:
+      - name: patch
+        image: quay.io/openshift/origin-cli:latest
+        command:
+        - /bin/bash
+        - -c
+        - |
+          echo "Patching TektonConfig to disable coschedule..."
+          oc patch tektonconfig config --type=merge -p '{"spec":{"pipeline":{"coschedule":"disabled"}}}'
+
+        resources:
+          requests:
+            cpu: 100m
+            memory: 100Mi
+      restartPolicy: OnFailure
+
 ---
 apiVersion: tekton.dev/v1
 kind: Pipeline

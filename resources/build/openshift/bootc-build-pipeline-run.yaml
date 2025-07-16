@@ -32,10 +32,6 @@ spec:
       value:
         - linux/amd64
         #- linux/arm64
-    - name: object-storage-endpoint
-      value: 's3.openshift-storage.svc:443'
-    - name: object-storage-bucket
-      value: user99-bootc-exports
     - name: skip-build
       value: 'false'
   pipelineRef:
