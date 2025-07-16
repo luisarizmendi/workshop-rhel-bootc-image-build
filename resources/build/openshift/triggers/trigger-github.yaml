@@ -1,3 +1,11 @@
+
+###
+#
+# NOTE: Change in "TriggerBinding" the  "registry" value with the registry where you will push your bootc image
+#
+##
+
+
 apiVersion: triggers.tekton.dev/v1alpha1
 kind: EventListener
 metadata:
@@ -37,6 +45,7 @@ spec:
     value: $(body.repository.clone_url)
   - name: git-repo-name
     value: $(body.repository.name)
+    #### CHANGE THE VALUE BELOW !!!!!!!!!!!!!!!!!!!!!!!!
   - name: registry
     value: quay.io/luisarizmendi
 
