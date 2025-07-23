@@ -99,7 +99,7 @@ spec:
       mountPath: /root/redhat-registry-secret
   steps:
     - name: gather-entitlements
-      image: quay.io/centos-bootc/bootc-image-builder:latest
+      image: registry.redhat.io/rhel9/bootc-image-builder:latest
       securityContext:
         privileged: true
         runAsUser: 0
@@ -238,7 +238,7 @@ spec:
       mountPath: /shared-containers
   steps:
     - name: build-and-push
-      image: quay.io/centos-bootc/bootc-image-builder:latest
+      image: registry.redhat.io/rhel9/bootc-image-builder:latest
       securityContext:
         privileged: true
         runAsUser: 0
@@ -316,7 +316,7 @@ spec:
       mountPath: /shared-containers
   steps:
     - name: create-manifest
-      image: quay.io/centos-bootc/bootc-image-builder:latest
+      image: registry.redhat.io/rhel9/bootc-image-builder:latest
       securityContext:
         privileged: true
         runAsUser: 0
@@ -438,7 +438,7 @@ spec:
       mountPath: /root/rh-entitlements
   steps:
     - name: generate-and-run-jobs
-      image: quay.io/centos-bootc/bootc-image-builder:latest
+      image: registry.redhat.io/rhel9/bootc-image-builder:latest
       securityContext:
         privileged: true
         runAsUser: 0
@@ -551,7 +551,7 @@ spec:
           -v ./config.toml:/config.toml:z \
           -v /bootc-exports/$(echo "$PLATFORM_ITEM" | sed 's|linux/||')/$DIR_NAME:/output \
           -v /var/lib/containers/storage:/var/lib/containers/storage \
-          quay.io/centos-bootc/bootc-image-builder:latest --target-arch $(echo "$PLATFORM_ITEM" | sed 's|linux/||') --type ${FORMAT_ITEM} --use-librepo=True $IMAGE
+          registry.redhat.io/rhel9/bootc-image-builder:latest --target-arch $(echo "$PLATFORM_ITEM" | sed 's|linux/||') --type ${FORMAT_ITEM} --use-librepo=True $IMAGE
 
         echo "Files exported after:"
         ls -R /bootc-exports

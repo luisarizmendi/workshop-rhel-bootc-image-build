@@ -11,7 +11,8 @@ ENTITLEMENTS_DIR="$HOME/.rh-entitlements"
 CONTAINERFILE="Containerfile"
 CONFIG_FILE="./config.toml"
 OUTPUT_DIR="./bootc-exports"
-BOOTC_BUILDER_IMAGE="quay.io/centos-bootc/bootc-image-builder:latest"
+BOOTC_BUILDER_IMAGE="registry.redhat.io/rhel9/bootc-image-builder:latest"
+#BOOTC_BUILDER_IMAGE="quay.io/centos-bootc/bootc-image-builder:latest"
 IMAGE=""
 FORMAT="anaconda-iso"
 ARCH_SPECIFIED=false
@@ -24,7 +25,7 @@ usage() {
     echo "  -a ARCH              Architecture (default: system architecture)"
     echo "  -e ENTITLEMENTS_DIR  Path to entitlements directory (default: ~/.rh-entitlements)"
     echo "  -c CONTEXT           Build context directory (default: .)"
-    echo "  -o                   Output dir"
+    echo "  -o                   Output dir (default: ./bootc-exports)"
     echo "  -f                   Target format. Valid values: anaconda-iso (default), qcow2, ami, vmdk, raw, vhd, gce."
     echo "  -t                   TOML config file. Default: ./config.toml"
     echo "  -h                   Show this help message"
@@ -34,19 +35,17 @@ usage() {
 
 # Function to detect system architecture
 detect_arch() {
-    local sys_arch=$(uname -m)
-    case "$sys_arch" in
+    local system_arch=$(uname -m)
+    case $system_arch in
         x86_64)
             echo "amd64"
             ;;
-        aarch64)
+        aarch64|arm64)
             echo "arm64"
             ;;
-        armv7l)
-            echo "arm"
-            ;;
         *)
-            echo "$sys_arch"
+            echo "Unsupported architecture: $system_arch. Supported: amd64, arm64" >&2
+            exit 1
             ;;
     esac
 }
@@ -168,35 +167,58 @@ sudo echo ""
 
 mkdir -p $OUTPUT_DIR
 
+# Registry login
+if sudo podman login --get-login "${BOOTC_BUILDER_IMAGE%%/*}" &>/dev/null; then
+  echo "Already logged in to ${BOOTC_BUILDER_IMAGE%%/*} as $(sudo podman login --get-login "${BOOTC_BUILDER_IMAGE%%/*}")"
+else
+  echo "Not logged in to ${BOOTC_BUILDER_IMAGE%%/*}. Logging in..."
+  sudo podman login -u "$USERNAME" -p "$PASSWORD" "${BOOTC_BUILDER_IMAGE%%/*}"
+fi
 
 # Only enable binfmt_misc for cross-arch
 if [ "$ARCH_SPECIFIED" = true ]; then
     echo "Enabling binfmt_misc for cross-arch builds..."
-    podman run --rm --privileged docker.io/multiarch/qemu-user-static --reset -p yes 2>/dev/null \
+    sudo podman run --rm --privileged docker.io/multiarch/qemu-user-static --reset -p yes 2>/dev/null \
         || echo "binfmt setup completed (some handlers may have already existed)"
 fi
 
-echo "Exporting image to ..."
 
+
+
+echo "Exporting image to ..."
 # export command
 EXPORT_CMD="sudo podman run --rm -it --privileged --pull=newer --security-opt label=type:unconfined_t   -v ${ENTITLEMENTS_DIR}/${ARCH}:/run/secrets:Z  -v $CONFIG_FILE:/config.toml:ro -v $OUTPUT_DIR:/output -v /var/lib/containers/storage:/var/lib/containers/storage"
-
-
-  
 
 # Only add --platform if architecture was explicitly specified
 if [ "$ARCH_SPECIFIED" = true ]; then
     EXPORT_CMD="$EXPORT_CMD --platform linux/$ARCH"
 fi
 
-EXPORT_CMD="$EXPORT_CMD $BOOTC_BUILDER_IMAGE --type $FORMAT  --use-librepo=True"
+EXPORT_CMD="$EXPORT_CMD $BOOTC_BUILDER_IMAGE --type $FORMAT  --use-librepo=True --progress debug"
 
 if [ "$ARCH_SPECIFIED" = true ]; then
     EXPORT_CMD="$EXPORT_CMD --target-arch $ARCH"
 fi
 
 
-sudo podman pull $IMAGE
+# Check if image is already pulled
+if sudo podman image exists "$IMAGE"; then
+  echo "Image $IMAGE already exists locally, skipping login and pull."
+else
+  # Registry login
+  echo "Checking registry login"
+  if sudo podman login --get-login "${IMAGE%%/*}" &>/dev/null; then
+    echo "Already logged in to ${IMAGE%%/*} as $(sudo podman login --get-login "${IMAGE%%/*}")"
+  else
+    echo "Not logged in to ${IMAGE%%/*}!"
+    sudo podman login "${IMAGE%%/*}"
+  fi
+
+  # Pull the image
+  sudo podman pull --platform linux/$ARCH "$IMAGE"
+fi
+
+
 EXPORT_CMD="$EXPORT_CMD $IMAGE"
 
 echo "Running command:"

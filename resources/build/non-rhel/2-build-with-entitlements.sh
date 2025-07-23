@@ -18,7 +18,6 @@ usage() {
     echo "  -e ENTITLEMENTS_DIR  Path to entitlements directory (default: ~/.rh-entitlements)"
     echo "  -f CONTAINERFILE     Path to Containerfile (default: Containerfile)"
     echo "  -c CONTEXT           Build context directory (default: .)"
-    echo "  -P                   Push image after build (default: false)"
     echo "  -h                   Show this help message"
     echo ""
     echo "Examples:"
@@ -35,19 +34,17 @@ usage() {
 
 # Function to detect system architecture
 detect_arch() {
-    local sys_arch=$(uname -m)
-    case "$sys_arch" in
+    local system_arch=$(uname -m)
+    case $system_arch in
         x86_64)
             echo "amd64"
             ;;
-        aarch64)
+        aarch64|arm64)
             echo "arm64"
             ;;
-        armv7l)
-            echo "arm"
-            ;;
         *)
-            echo "$sys_arch"
+            echo "Unsupported architecture: $system_arch. Supported: amd64, arm64" >&2
+            exit 1
             ;;
     esac
 }
@@ -69,9 +66,6 @@ while getopts "i:a:e:s:f:c:t:Ph" opt; do
             ;;
         c)
             CONTEXT="$OPTARG"
-            ;;
-        P)
-            PUSH_IMAGE=true
             ;;
         h)
             usage

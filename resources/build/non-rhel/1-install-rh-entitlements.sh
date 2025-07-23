@@ -26,6 +26,21 @@ detect_arch() {
     esac
 }
 
+# Function to prompt for credentials with hidden password input
+prompt_for_credentials() {
+    echo "No credentials found. Please provide your Red Hat credentials:"
+    read -p "Username: " USERNAME
+    read -s -p "Password: " PASSWORD
+    echo  # Add newline after hidden password input
+    
+    if [ -z "$USERNAME" ] || [ -z "$PASSWORD" ]; then
+        echo "Error: Both username and password are required."
+        exit 1
+    fi
+    
+    CREDENTIAL_SOURCE="user input"
+}
+
 usage() {
     echo "Usage: $0 [OPTIONS]"
     echo ""
@@ -42,6 +57,7 @@ usage() {
     echo "  2. Environment variables (RH_USERNAME/RH_PASSWORD)"
     echo "  3. Credentials file specified with -c"
     echo "  4. Default credentials file (~/.rh-credentials)"
+    echo "  5. Interactive user input (if none of the above are set)"
     echo ""
     echo "Examples:"
     echo "  # Using environment variables (recommended)"
@@ -56,6 +72,9 @@ usage() {
     echo ""
     echo "  # Using command line (less secure)"
     echo "  $0 -u myuser -p mypassword"
+    echo ""
+    echo "  # Interactive input (will prompt for credentials)"
+    echo "  $0"
     exit 1
 }
 
@@ -112,7 +131,8 @@ read_credentials_file() {
 
 CREDENTIAL_SOURCE=""
 
-# Credential priority: command line > environment variables > credentials file > default credentials file
+# Credential priority: 
+# 1. Command line > 2. Environment variables > 3. Credentials file > 4. Default credentials file > 5. User input
 if [ -n "$USERNAME" ] && [ -n "$PASSWORD" ]; then
     CREDENTIAL_SOURCE="command line"
 elif [ -n "$RH_USERNAME" ] && [ -n "$RH_PASSWORD" ]; then
@@ -123,17 +143,16 @@ elif [ -n "$CREDENTIALS_FILE" ] && read_credentials_file "$CREDENTIALS_FILE"; th
     CREDENTIAL_SOURCE="credentials file: $CREDENTIALS_FILE"
 elif read_credentials_file "$HOME/.rh-credentials"; then
     CREDENTIAL_SOURCE="default credentials file: $HOME/.rh-credentials"
+else
+    # If no credentials found through any of the above methods, prompt user
+    prompt_for_credentials
 fi
 
+# Final validation (this should not be needed anymore, but kept as safeguard)
 if [ -z "$USERNAME" ] || [ -z "$PASSWORD" ]; then
-    echo "Error: Red Hat credentials are required."
-    echo "Please provide credentials using one of these methods:"
-    echo "  1. Command line: -u username -p password"
-    echo "  2. Environment variables: RH_USERNAME and RH_PASSWORD"
-    echo "  3. Credentials file: -c /path/to/credentials"
-    echo "  4. Default credentials file: ~/.rh-credentials"
-    echo ""
-    usage
+    echo "Error: Red Hat credentials are required but could not be obtained."
+    echo "This should not happen - please check the script logic."
+    exit 1
 fi
 
 ENTITLEMENTS_DIR="${ENTITLEMENTS_DIR/#\~/$HOME}"
@@ -154,10 +173,20 @@ fi
 
 # Check if entitlements already exist
 if [ -d "${ENTITLEMENTS_DIR}/${ARCH}" ] && find "${ENTITLEMENTS_DIR}/${ARCH}" -mindepth 1 -maxdepth 1 -type f | grep -q .; then
-    echo "Entitlements already exist for $ARCH"
-    exit 0
+    echo "Entitlements already exist for $ARCH."
+    
+    read -p "Do you want to delete the existing entitlements and continue? (y/N): " choice
+    case "$choice" in
+        [yY][eE][sS]|[yY])
+            echo "Deleting existing entitlements..."
+            rm -rf "${ENTITLEMENTS_DIR:?}/${ARCH}"
+            ;;
+        *)
+            echo "Exiting."
+            exit 0
+            ;;
+    esac
 fi
-
 
 # Registry login
 if podman login --get-login "${SUBS_FROM%%/*}" &>/dev/null; then
@@ -167,12 +196,9 @@ else
   podman login -u "$USERNAME" -p "$PASSWORD" "${SUBS_FROM%%/*}"
 fi
 
-
-
 echo "Enabling binfmt_misc for cross-arch builds..."
 podman run --rm --privileged docker.io/multiarch/qemu-user-static --reset -p yes 2>/dev/null \
     || echo "binfmt setup completed (some handlers may have already existed)"
-
 
 echo "Getting entitlements for $ARCH..."
 
@@ -211,7 +237,6 @@ podman build -f Containerfile.subs \
     --platform "linux/$ARCH" \
     --no-cache \
     -t "local-$ARCH" .
-
 
 CONTAINER_ID=$(podman create "local-$ARCH")
 podman cp "${CONTAINER_ID}:/entitlements/." "entitlements/$ARCH/"
